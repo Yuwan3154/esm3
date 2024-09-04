@@ -382,7 +382,15 @@ class StructureTokenDecoder(nn.Module):
         structure_tokens: torch.Tensor,
         attention_mask: torch.Tensor | None = None,
         sequence_id: torch.Tensor | None = None,
+        structure_tokens_soft: torch.Tensor | None = None,
     ):
+        # if soft tokens are provided, embed them instead of hard tokens
+        if structure_tokens_soft is not None:
+            structure_tokens = structure_tokens_soft.argmax(-1)
+            x = structure_tokens_soft * self.embedding.weight
+        else:
+            x = self.embed(structure_tokens)
+
         if attention_mask is None:
             attention_mask = torch.ones_like(structure_tokens, dtype=torch.bool)
 
@@ -407,7 +415,6 @@ class StructureTokenDecoder(nn.Module):
             (structure_tokens < 0).sum() == 0
         ), "All structure tokens set to -1 should be replaced with BOS, EOS, PAD, or MASK tokens by now, but that isn't the case!"
 
-        x = self.embed(structure_tokens)
         # !!! NOTE: Attention mask is actually unused here so watch out
         x, _ = self.decoder_stack.forward(
             x, affine=None, affine_mask=None, sequence_id=sequence_id, chain_id=chain_id
