@@ -387,7 +387,7 @@ class StructureTokenDecoder(nn.Module):
         # if soft tokens are provided, embed them instead of hard tokens
         if structure_tokens_soft is not None:
             structure_tokens = structure_tokens_soft.argmax(-1)
-            x = structure_tokens_soft * self.embed.weight
+            x = structure_tokens_soft @ self.embed.weight
         else:
             x = self.embed(structure_tokens)
 
