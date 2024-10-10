@@ -54,7 +54,7 @@ class EMACodebook(nn.Module):
         self.z_avg.data.copy_(_k_rand)
         self.N.data.copy_(torch.ones(self.n_codes))
 
-    def forward(self, z):
+    def forward(self, z, soft=False, T=0.0015):
         # z: [b, t, c]
         if self._need_init and self.training and not self.freeze_codebook:
             self._init_embeddings(z)
@@ -66,19 +66,28 @@ class EMACodebook(nn.Module):
             + (self.embeddings.t() ** 2).sum(dim=0, keepdim=True)
         )  # [bt, c]
 
-        encoding_indices = torch.argmin(distances, dim=1)
-        encoding_indices = encoding_indices.view(*z.shape[:2])  # [b, t, ncode]
+        if soft:
+            inv_distances = (1/distances) / T
+            inv_distances -= inv_distances.max(dim=-1, keepdim=True)[0]
+            inv_distance_softmax = F.softmax(inv_distances, dim=1)
 
-        embeddings = F.embedding(encoding_indices, self.embeddings)  # [b, t, c]
+            embeddings = self.embeddings @ inv_distance_softmax
+            embeddings_st = (embeddings - z).detach() + z
+            return embeddings_st, inv_distance_softmax, torch.tensor([0.0], device=z.device)
+        else:
+            encoding_indices = torch.argmin(distances, dim=1)
+            encoding_indices = encoding_indices.view(*z.shape[:2])  # [b, t, ncode]
 
-        commitment_loss = 0.25 * F.mse_loss(z, embeddings.detach())
+            embeddings = F.embedding(encoding_indices, self.embeddings)  # [b, t, c]
 
-        # EMA codebook update
-        if self.training and not self.freeze_codebook:
-            assert False, "Not implemented"
-        embeddings_st = (embeddings - z).detach() + z
+            commitment_loss = 0.25 * F.mse_loss(z, embeddings.detach())
 
-        return embeddings_st, encoding_indices, commitment_loss
+            # EMA codebook update
+            if self.training and not self.freeze_codebook:
+                assert False, "Not implemented"
+            embeddings_st = (embeddings - z).detach() + z
+
+            return embeddings_st, encoding_indices, commitment_loss
 
     def dictionary_lookup(self, encodings):
         embeddings = F.embedding(encodings, self.embeddings)

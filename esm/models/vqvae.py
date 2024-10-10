@@ -304,6 +304,8 @@ class StructureTokenEncoder(nn.Module):
         attention_mask: torch.Tensor | None = None,
         sequence_id: torch.Tensor | None = None,
         residue_index: torch.Tensor | None = None,
+        soft: bool = False,
+        T: float = 0.0015,
     ):
         coords = coords[..., :3, :]
         affine, affine_mask = build_affine3d_from_coordinates(coords=coords)
@@ -327,7 +329,7 @@ class StructureTokenEncoder(nn.Module):
         z = z.masked_fill(~affine_mask.unsqueeze(2), 0)
         z = self.pre_vq_proj(z)
 
-        z_q, min_encoding_indices, _ = self.codebook(z)
+        z_q, min_encoding_indices, _ = self.codebook(z, soft=soft, T=T)
 
         return z_q, min_encoding_indices
 
