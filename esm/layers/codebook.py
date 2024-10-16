@@ -67,13 +67,11 @@ class EMACodebook(nn.Module):
         )  # [bt, c]
 
         if soft:
-            inv_distances = (1/distances) / T
+            inv_distances = torch.pow(distances, -1) / T
             inv_distances -= inv_distances.max(dim=-1, keepdim=True)[0]
             inv_distance_softmax = F.softmax(inv_distances, dim=1)
 
-            embeddings = self.embeddings @ inv_distance_softmax
-            embeddings_st = (embeddings - z).detach() + z
-            return embeddings_st, inv_distance_softmax, torch.tensor([0.0], device=z.device)
+            return None, inv_distance_softmax, None
         else:
             encoding_indices = torch.argmin(distances, dim=1)
             encoding_indices = encoding_indices.view(*z.shape[:2])  # [b, t, ncode]
