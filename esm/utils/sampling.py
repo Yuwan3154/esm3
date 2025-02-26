@@ -118,8 +118,12 @@ class _BatchedESMProteinTensor(ESMProteinTensor):
 def get_default_sampling_config(
     tokenizers: TokenizerCollectionProtocol,
 ) -> SamplingConfig:
-    tracks = [f.name for f in attr.fields(SamplingConfig)]
-    sampling_config = SamplingConfig()
+    tracks = ["sequence", "structure", "secondary_structure", "sasa", "function"]
+    # tracks = [f.name for f in attr.fields(SamplingConfig)]
+    # tracks.remove("return_per_residue_embeddings")
+    # tracks.remove("return_mean_embedding")
+
+    sampling_config = SamplingConfig(return_per_residue_embeddings=True, return_mean_embedding=True)
     for current_track in tracks:
         setattr(
             sampling_config,
