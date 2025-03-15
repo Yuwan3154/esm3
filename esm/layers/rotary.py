@@ -54,8 +54,10 @@ def apply_rotary_emb_torch(x, cos, sin, interleaved=False, _inplace=False):
     seqlen = x.size(1)
     cos = cos[:seqlen]
     sin = sin[:seqlen]
-    cos = repeat(cos, "s d -> s 1 (2 d)")
-    sin = repeat(sin, "s d -> s 1 (2 d)")
+    # cos = repeat(cos, "s d -> s 1 (2 d)")
+    # sin = repeat(sin, "s d -> s 1 (2 d)")
+    cos = cos[:, None, :].repeat(1, 1, 2)
+    sin = sin[:, None, :].repeat(1, 1, 2)
     return torch.cat(
         [
             x[..., :ro_dim] * cos + rotate_half(x[..., :ro_dim], interleaved) * sin,
@@ -83,6 +85,7 @@ class RotaryEmbedding(torch.nn.Module):
     def __init__(
         self,
         dim: int,
+        fixed_seq_len: int = 0,
         base=10000.0,
         interleaved=False,
         scale_base=None,
@@ -114,13 +117,17 @@ class RotaryEmbedding(torch.nn.Module):
         self.scale_base = scale_base
         self.scaling_factor = scaling_factor
         self.device = device
+        self.fixed_seq_len = fixed_seq_len
 
-        self._seq_len_cached = 0
+        self._seq_len_cached = fixed_seq_len
         self._cos_cached = None
         self._sin_cached = None
         self._cos_k_cached = None
         self._sin_k_cached = None
         self.reset_parameters()
+        self._update_cos_sin_cache(
+            fixed_seq_len, device=device, dtype=torch.float32
+        )
 
     def reset_parameters(self):
         inv_freq = self._compute_inv_freq(self.device)
@@ -202,9 +209,11 @@ class RotaryEmbedding(torch.nn.Module):
         seqlen_offset: can be used in generation where the qkv being passed in is only the last
         token in the batch.
         """
-        self._update_cos_sin_cache(
-            q.shape[1] + seqlen_offset, device=q.device, dtype=q.dtype
-        )
+        if self.fixed_seq_len == 0:
+            self._update_cos_sin_cache(
+                q.shape[1] + seqlen_offset, device=q.device, dtype=q.dtype
+            )
+        
         assert self._cos_cached is not None
         assert self._sin_cached is not None
         if self.scale is None:
